@@ -57,17 +57,22 @@ It can also register the MCP server in Codex for you.
 Edit the generated `.env.local` and set:
 
 - `OPNSENSE_BASE_URL`
+- `OPNSENSE_ALLOW_INSECURE_HTTP` if you intentionally use plain HTTP on a trusted local lab network
 - `OPNSENSE_API_KEY`
 - `OPNSENSE_API_SECRET`
 
 Default example:
 
 ```env
+# Local lab-only example. Prefer https://... with OPNSENSE_VERIFY_TLS=true when available.
 OPNSENSE_BASE_URL=http://opnsense.internal
+OPNSENSE_ALLOW_INSECURE_HTTP=true
 OPNSENSE_API_KEY=replace-me
 OPNSENSE_API_SECRET=replace-me
 OPNSENSE_VERIFY_TLS=false
 ```
+
+If your router has HTTPS available with a trusted certificate, use that instead and either remove `OPNSENSE_ALLOW_INSECURE_HTTP` or set it to `false`.
 
 ## 4. Confirm The Launcher Image
 
@@ -78,6 +83,7 @@ ghcr.io/addlockwood/opnsense-mcp:latest
 ```
 
 If you want to pin a specific release, edit `run-opnsense-mcp.sh` and replace `latest` with a version tag.
+The generated launcher also runs the container as your local user so the mounted private repo stays writable without granting the container root access.
 
 ## 5. Verify Codex MCP Registration
 

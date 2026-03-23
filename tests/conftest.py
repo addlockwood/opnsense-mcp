@@ -144,6 +144,7 @@ def config(temp_workspace: Path) -> AppConfig:
         api_key="key",
         api_secret="secret",
         verify_tls=False,
+        allow_insecure_http=False,
         workspace_path=temp_workspace,
         snapshot_host="this",
         git_author_name="Test User",

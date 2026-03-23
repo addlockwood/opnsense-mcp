@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import urlparse
 
 
 def _bool_from_env(value: str | None, *, default: bool) -> bool:
@@ -17,6 +18,7 @@ class AppConfig:
     api_key: str
     api_secret: str
     verify_tls: bool
+    allow_insecure_http: bool
     workspace_path: Path
     snapshot_host: str
     git_author_name: str
@@ -35,13 +37,18 @@ class AppConfig:
             "OPNSENSE_GIT_AUTHOR_EMAIL",
             "opnsense-mcp@example.invalid",
         )
-        verify_tls = _bool_from_env(os.environ.get("OPNSENSE_VERIFY_TLS"), default=False)
+        verify_tls = _bool_from_env(os.environ.get("OPNSENSE_VERIFY_TLS"), default=True)
+        allow_insecure_http = _bool_from_env(
+            os.environ.get("OPNSENSE_ALLOW_INSECURE_HTTP"),
+            default=False,
+        )
 
         return cls(
             base_url=base_url,
             api_key=api_key,
             api_secret=api_secret,
             verify_tls=verify_tls,
+            allow_insecure_http=allow_insecure_http,
             workspace_path=workspace_path,
             snapshot_host=snapshot_host,
             git_author_name=git_author_name,
@@ -59,3 +66,12 @@ class AppConfig:
         if missing:
             joined = ", ".join(missing)
             raise ValueError(f"Missing required environment variables: {joined}")
+
+        parsed = urlparse(self.base_url)
+        if parsed.scheme not in {"http", "https"}:
+            raise ValueError("OPNSENSE_BASE_URL must start with http:// or https://")
+        if parsed.scheme == "http" and not self.allow_insecure_http:
+            raise ValueError(
+                "Refusing insecure HTTP OPNsense connection. "
+                "Set OPNSENSE_ALLOW_INSECURE_HTTP=true only for trusted local lab use."
+            )

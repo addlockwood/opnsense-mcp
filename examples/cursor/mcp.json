@@ -1,24 +1,8 @@
 {
   "mcpServers": {
     "opnsense": {
-      "command": "docker",
-      "args": [
-        "run",
-        "--rm",
-        "-i",
-        "-e",
-        "OPNSENSE_BASE_URL",
-        "-e",
-        "OPNSENSE_API_KEY",
-        "-e",
-        "OPNSENSE_API_SECRET",
-        "-e",
-        "OPNSENSE_VERIFY_TLS=false",
-        "-v",
-        "/ABSOLUTE/PATH/TO/private-router-state:/workspace",
-        "opnsense-mcp:local"
-      ]
+      "command": "/ABSOLUTE/PATH/TO/private-router-state/run-opnsense-mcp.sh",
+      "args": []
     }
   }
 }
-

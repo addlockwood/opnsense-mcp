@@ -69,7 +69,9 @@ This repo is mounted into the Dockerized MCP server at \`/workspace\`.
 EOF
 
 cat > "${repo_path}/.env.local.example" <<'EOF'
+# For trusted local lab use only. Prefer https://... with OPNSENSE_VERIFY_TLS=true when available.
 OPNSENSE_BASE_URL=http://opnsense.internal
+OPNSENSE_ALLOW_INSECURE_HTTP=true
 OPNSENSE_API_KEY=replace-me
 OPNSENSE_API_SECRET=replace-me
 OPNSENSE_VERIFY_TLS=false
@@ -96,10 +98,13 @@ source "\${ENV_FILE}"
 set +a
 
 exec docker run --rm -i \\
+  --user "\$(id -u):\$(id -g)" \\
   -e OPNSENSE_BASE_URL \\
+  -e OPNSENSE_ALLOW_INSECURE_HTTP \\
   -e OPNSENSE_API_KEY \\
   -e OPNSENSE_API_SECRET \\
   -e OPNSENSE_VERIFY_TLS \\
+  -e HOME=/tmp \\
   -e OPNSENSE_WORKSPACE_PATH=/workspace \\
   -v "\${SCRIPT_DIR}:/workspace" \\
   ${image_name}

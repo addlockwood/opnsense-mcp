@@ -64,11 +64,19 @@ Required environment variables:
 
 Optional environment variables:
 
-- `OPNSENSE_VERIFY_TLS` default `false`
+- `OPNSENSE_VERIFY_TLS` default `true`
+- `OPNSENSE_ALLOW_INSECURE_HTTP` default `false`
 - `OPNSENSE_WORKSPACE_PATH` default `/workspace`
 - `OPNSENSE_SNAPSHOT_HOST` default `this`
 - `OPNSENSE_GIT_AUTHOR_NAME`
 - `OPNSENSE_GIT_AUTHOR_EMAIL`
+
+Security defaults:
+
+- HTTPS is allowed by default
+- plain HTTP is rejected unless `OPNSENSE_ALLOW_INSECURE_HTTP=true`
+- the published runtime image does not include local `.env` files or test fixtures
+- the runtime image runs as a non-root user by default
 
 ## Private State Repo Layout
 
@@ -127,6 +135,7 @@ The bootstrap script will:
 
 By default, the generated launcher points at `ghcr.io/addlockwood/opnsense-mcp:latest`.
 After that, edit the generated `.env.local` in your private repo and fill in your OPNsense API values.
+The generated file uses `http://opnsense.internal` only as an explicit local-lab opt-in and sets `OPNSENSE_ALLOW_INSECURE_HTTP=true` to make that choice obvious.
 
 ## Build From Source
 
@@ -144,15 +153,23 @@ Run it as a local stdio MCP server:
 
 ```bash
 docker run --rm -i \
+  --user "$(id -u):$(id -g)" \
   -e OPNSENSE_BASE_URL=https://router.example \
   -e OPNSENSE_API_KEY=... \
   -e OPNSENSE_API_SECRET=... \
-  -e OPNSENSE_VERIFY_TLS=false \
+  -e OPNSENSE_VERIFY_TLS=true \
+  -e HOME=/tmp \
   -v /path/to/private-router-repo:/workspace \
-  opnsense-mcp:local
+  ghcr.io/addlockwood/opnsense-mcp:latest
 ```
 
 For a real local UAT run, point `/path/to/private-router-repo` at your private state repo, not this public project repo.
+
+For trusted local labs that still use plain HTTP, add:
+
+```bash
+-e OPNSENSE_ALLOW_INSECURE_HTTP=true
+```
 
 ## MCP Client Setup
 
@@ -162,6 +179,7 @@ Example local stdio configuration files live under [`examples/`](./examples):
 - Cursor: [`examples/cursor/mcp.json`](./examples/cursor/mcp.json)
 - Bootstrap script: [`scripts/setup-local.sh`](./scripts/setup-local.sh)
 - End-user guide: [`docs/end-user-quickstart.md`](./docs/end-user-quickstart.md)
+- Security notes: [`SECURITY.md`](./SECURITY.md)
 
 These examples assume:
 
