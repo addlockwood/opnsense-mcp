@@ -3,7 +3,7 @@ set -euo pipefail
 
 default_repo_path="${HOME}/dev/opnsense"
 default_server_name="opnsense"
-default_image="opnsense-mcp:runtime"
+default_image="ghcr.io/addlockwood/opnsense-mcp:latest"
 
 repo_path="${1:-}"
 server_name="${2:-}"

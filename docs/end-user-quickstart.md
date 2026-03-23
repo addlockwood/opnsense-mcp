@@ -14,20 +14,23 @@ This guide is for users who want to use `opnsense-mcp` without building the proj
 Once published, pull the latest release image:
 
 ```bash
-docker pull ghcr.io/<owner>/opnsense-mcp:latest
+docker pull ghcr.io/addlockwood/opnsense-mcp:latest
 ```
 
 If you prefer a pinned release, replace `latest` with a version tag.
 
 ## 2. Bootstrap The Local State Repo
 
-If you have the repo checked out locally:
+Download the bootstrap script from the latest GitHub release and run it locally:
 
 ```bash
-./scripts/setup-local.sh
+curl -fsSL -o setup-local.sh \
+  https://github.com/addlockwood/opnsense-mcp/releases/latest/download/setup-local.sh
+chmod +x setup-local.sh
+./setup-local.sh
 ```
 
-If you are using a published release without a long-lived source checkout, download the bootstrap script from the repo or release assets and run it locally. The script only prepares your private router-state repo and local launcher; it does not build the image.
+The script only prepares your private router-state repo and local launcher; it does not build the image.
 
 Recommended normal defaults:
 
@@ -66,15 +69,15 @@ OPNSENSE_API_SECRET=replace-me
 OPNSENSE_VERIFY_TLS=false
 ```
 
-## 4. Point The Launcher At The Image You Pulled
+## 4. Confirm The Launcher Image
 
-If your launcher still references a locally built image, update it to the pulled image tag.
-
-Example:
+The generated launcher defaults to:
 
 ```bash
-ghcr.io/<owner>/opnsense-mcp:latest
+ghcr.io/addlockwood/opnsense-mcp:latest
 ```
+
+If you want to pin a specific release, edit `run-opnsense-mcp.sh` and replace `latest` with a version tag.
 
 ## 5. Verify Codex MCP Registration
 

@@ -44,9 +44,7 @@ class OPNsenseMCPService:
 
     def inspect_runtime(self) -> dict[str, Any]:
         self._workspace.ensure_layout()
-        history_files = sorted(
-            path.name for path in self._workspace.paths.history_dir.glob("*.md")
-        )
+        history_files = sorted(path.name for path in self._workspace.paths.history_dir.glob("*.md"))
         snapshot_exists = self._workspace.paths.current_snapshot.exists()
         return {
             "workspace_path": str(self._workspace.paths.root),

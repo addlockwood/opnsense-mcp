@@ -107,11 +107,14 @@ docker run --rm opnsense-mcp:dev mypy src
 
 ## Released Image Setup
 
-If you are using a published release, pull the latest tagged image and bootstrap a local state repo:
+If you are using a published release, pull the latest image and download the bootstrap script:
 
 ```bash
-docker pull ghcr.io/<owner>/opnsense-mcp:latest
-./scripts/setup-local.sh
+docker pull ghcr.io/addlockwood/opnsense-mcp:latest
+curl -fsSL -o setup-local.sh \
+  https://github.com/addlockwood/opnsense-mcp/releases/latest/download/setup-local.sh
+chmod +x setup-local.sh
+./setup-local.sh
 ```
 
 The bootstrap script will:
@@ -122,7 +125,8 @@ The bootstrap script will:
 - create the local launcher script
 - optionally register the stdio MCP server in Codex
 
-After that, edit the generated `.env.local` in your private repo and point the launcher at the pulled image if needed.
+By default, the generated launcher points at `ghcr.io/addlockwood/opnsense-mcp:latest`.
+After that, edit the generated `.env.local` in your private repo and fill in your OPNsense API values.
 
 ## Build From Source
 
@@ -130,7 +134,7 @@ If you want to build locally instead of pulling a release:
 
 ```bash
 docker build --target runtime -t opnsense-mcp:runtime .
-./scripts/setup-local.sh
+./scripts/setup-local.sh ~/dev/opnsense opnsense opnsense-mcp:runtime
 ```
 
 For a normal install, accept the defaults.
@@ -165,7 +169,7 @@ These examples assume:
 - your local private state repo is mounted from your workstation
 - your OPNsense API credentials are provided as environment variables on the host
 
-For most users, the bootstrap script plus a pulled image is the easier path because it generates the launcher and local repo automatically.
+For most users, the bootstrap script plus the published GHCR image is the easier path because it generates the launcher and local repo automatically without requiring a source checkout.
 
 ## UAT Checklist
 
