@@ -532,6 +532,11 @@ class OPNsenseMCPService:
             try:
                 details = self._api.service_status(module)
                 statuses[module] = str(details.get("status", "unknown"))
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code in {400, 404, 405}:
+                    statuses[module] = "unavailable"
+                    continue
+                statuses[module] = f"http-{exc.response.status_code}"
             except Exception as exc:  # pragma: no cover - surfaced through diagnosis payload
                 statuses[module] = f"error: {exc}"
         return statuses

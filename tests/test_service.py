@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import httpx
+
 from opnsense_mcp.models import ChangeApproval, ChangePlan, OperationExecution, ValidationResult
 from opnsense_mcp.workspace import parse_history_record
 
@@ -30,6 +32,21 @@ def test_connectivity_preflight_reports_ready(service) -> None:
         "auth_valid",
         "snapshot_endpoint",
     ]
+
+
+def test_inspect_dns_topology_gracefully_handles_missing_service_status(service) -> None:
+    request = httpx.Request("GET", "https://router.example/api/unbound/service/status")
+    response = httpx.Response(400, request=request)
+
+    def failing_status(module: str) -> dict[str, object]:
+        raise httpx.HTTPStatusError("bad request", request=request, response=response)
+
+    service._api.service_status = failing_status  # type: ignore[method-assign]
+
+    payload = service.inspect_dns_topology()
+
+    assert payload["unbound"]["status"] == "unavailable"
+    assert payload["dnsmasq"]["status"] == "unavailable"
 
 
 def test_inspect_dhcp_reports_option_6_and_warning(service) -> None:
