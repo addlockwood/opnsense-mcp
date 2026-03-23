@@ -1,10 +1,22 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Any
+from importlib.metadata import PackageNotFoundError, version
+from typing import Any, cast
+from urllib.parse import urlparse
+
+import httpx
 
 from opnsense_mcp.api import OPNsenseAPIClient
 from opnsense_mcp.config import AppConfig
+from opnsense_mcp.dns_diagnostics import (
+    explain_resolution_path as build_resolution_explanation,
+)
+from opnsense_mcp.dns_diagnostics import (
+    parse_snapshot_dns_state,
+    summarize_dhcp,
+    summarize_dns_topology,
+)
 from opnsense_mcp.errors import PlanApprovalError, UnsupportedModuleError, ValidationFailedError
 from opnsense_mcp.models import (
     ApiOperation,
@@ -47,6 +59,15 @@ class OPNsenseMCPService:
         history_files = sorted(path.name for path in self._workspace.paths.history_dir.glob("*.md"))
         snapshot_exists = self._workspace.paths.current_snapshot.exists()
         return {
+            "app_version": self._app_version(),
+            "image_ref": self._config.image_ref,
+            "transport": self._config.transport,
+            "http_transport": {
+                "host": self._config.http_host,
+                "port": self._config.http_port,
+                "path": self._config.http_path,
+            },
+            "router_base_url": self._config.base_url,
             "workspace_path": str(self._workspace.paths.root),
             "history_dir": str(self._workspace.paths.history_dir),
             "snapshots_dir": str(self._workspace.paths.snapshots_dir),
@@ -54,6 +75,7 @@ class OPNsenseMCPService:
             "current_snapshot_exists": snapshot_exists,
             "history_files": history_files,
             "workspace_head": self._workspace.current_head(),
+            "connectivity": self.connectivity_preflight(),
         }
 
     def inspect_state(self, module: str) -> dict[str, Any]:
@@ -84,6 +106,99 @@ class OPNsenseMCPService:
         return SearchResult(module=module, record_type=record_type, rows=rows).model_dump(
             mode="json"
         )
+
+    def connectivity_preflight(self) -> dict[str, Any]:
+        checks: list[dict[str, Any]] = []
+        workspace_ok, workspace_detail = self._check_workspace_writable()
+        checks.append(
+            {
+                "name": "workspace_writable",
+                "ok": workspace_ok,
+                "detail": workspace_detail,
+            }
+        )
+
+        api_ok, api_detail, auth_ok = self._check_api_access()
+        checks.append({"name": "router_reachable", "ok": api_ok, "detail": api_detail})
+        checks.append(
+            {
+                "name": "auth_valid",
+                "ok": auth_ok,
+                "detail": api_detail if not auth_ok else "Authenticated API read succeeded.",
+            }
+        )
+
+        snapshot_ok, snapshot_detail = self._check_snapshot_access()
+        checks.append({"name": "snapshot_endpoint", "ok": snapshot_ok, "detail": snapshot_detail})
+
+        return {
+            "ok": all(check["ok"] for check in checks),
+            "checks": checks,
+        }
+
+    def inspect_dhcp(self) -> dict[str, Any]:
+        context = self._collect_dns_context()
+        return summarize_dhcp(
+            state=context["snapshot_state"],
+            option_rows=context["dnsmasq_option_rows"],
+            dnsmasq_status=context["service_statuses"]["dnsmasq"],
+        )
+
+    def inspect_dns_topology(self) -> dict[str, Any]:
+        context = self._collect_dns_context()
+        return summarize_dns_topology(
+            state=context["snapshot_state"],
+            option_rows=context["dnsmasq_option_rows"],
+            unbound_rows=context["unbound_host_rows"],
+            unbound_status=context["service_statuses"]["unbound"],
+            dnsmasq_status=context["service_statuses"]["dnsmasq"],
+            base_url=self._config.base_url,
+        )
+
+    def explain_resolution_path(self, hostname: str) -> dict[str, Any]:
+        context = self._collect_dns_context()
+        return build_resolution_explanation(
+            hostname,
+            state=context["snapshot_state"],
+            option_rows=context["dnsmasq_option_rows"],
+            unbound_rows=context["unbound_host_rows"],
+            base_url=self._config.base_url,
+        )
+
+    def capture_dns_diagnosis(self) -> dict[str, Any]:
+        xml_text = self._api.fetch_snapshot_xml(self._config.snapshot_host)
+        snapshot = self._workspace.capture_snapshot(xml_text).model_dump(mode="json")
+        snapshot_state = parse_snapshot_dns_state(xml_text)
+        dnsmasq_option_rows = self._registry.get_adapter("dnsmasq", "option").search(
+            self._api, SearchQuery()
+        )
+        unbound_host_rows = self._registry.get_adapter("unbound", "host_override").search(
+            self._api, SearchQuery()
+        )
+        service_statuses = self._service_statuses()
+        dhcp = summarize_dhcp(
+            state=snapshot_state,
+            option_rows=dnsmasq_option_rows,
+            dnsmasq_status=service_statuses["dnsmasq"],
+        )
+        topology = summarize_dns_topology(
+            state=snapshot_state,
+            option_rows=dnsmasq_option_rows,
+            unbound_rows=unbound_host_rows,
+            unbound_status=service_statuses["unbound"],
+            dnsmasq_status=service_statuses["dnsmasq"],
+            base_url=self._config.base_url,
+        )
+        dhcp_warnings = cast(list[str], dhcp["warnings"])
+        topology_warnings = cast(list[str], topology["warnings"])
+        warnings = list(dict.fromkeys([*dhcp_warnings, *topology_warnings]))
+        return {
+            "snapshot": snapshot,
+            "dhcp": dhcp,
+            "topology": topology,
+            "summary": topology["summary"],
+            "warnings": warnings,
+        }
 
     def plan_change(
         self,
@@ -367,3 +482,97 @@ class OPNsenseMCPService:
             if match_fields:
                 return match_fields
         return {key: value for key, value in row.items() if key != "uuid" and value}
+
+    def _app_version(self) -> str:
+        try:
+            return version("opnsense-mcp")
+        except PackageNotFoundError:
+            return "unknown"
+
+    def _check_workspace_writable(self) -> tuple[bool, str]:
+        try:
+            self._workspace.ensure_layout()
+            probe = self._workspace.paths.root / ".opnsense-mcp-write-check"
+            probe.write_text("ok", encoding="utf-8")
+            probe.unlink()
+            return True, "Workspace layout exists and is writable."
+        except OSError as exc:
+            return False, f"Workspace is not writable: {exc}"
+
+    def _check_api_access(self) -> tuple[bool, str, bool]:
+        try:
+            status = self._api.service_status("unbound")
+            return True, f"API read succeeded: {status}", True
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code in {401, 403}:
+                return True, f"Authentication failed with HTTP {exc.response.status_code}.", False
+            return (
+                True,
+                f"Router responded with HTTP {exc.response.status_code} during API read.",
+                True,
+            )
+        except httpx.HTTPError as exc:
+            return False, f"Could not reach router API: {exc}", False
+
+    def _check_snapshot_access(self) -> tuple[bool, str]:
+        try:
+            xml_text = self._api.fetch_snapshot_xml(self._config.snapshot_host)
+            parse_snapshot_dns_state(xml_text)
+            return True, "Snapshot endpoint returned parseable XML."
+        except httpx.HTTPStatusError as exc:
+            return False, f"Snapshot endpoint returned HTTP {exc.response.status_code}."
+        except httpx.HTTPError as exc:
+            return False, f"Snapshot endpoint could not be reached: {exc}"
+        except Exception as exc:
+            return False, f"Snapshot endpoint returned unexpected data: {exc}"
+
+    def _service_statuses(self) -> dict[str, str]:
+        statuses: dict[str, str] = {}
+        for module in ("unbound", "dnsmasq"):
+            try:
+                details = self._api.service_status(module)
+                statuses[module] = str(details.get("status", "unknown"))
+            except Exception as exc:  # pragma: no cover - surfaced through diagnosis payload
+                statuses[module] = f"error: {exc}"
+        return statuses
+
+    def _collect_dns_context(self) -> dict[str, Any]:
+        xml_text = self._api.fetch_snapshot_xml(self._config.snapshot_host)
+        snapshot_state = parse_snapshot_dns_state(xml_text)
+        dnsmasq_option_rows = self._registry.get_adapter("dnsmasq", "option").search(
+            self._api, SearchQuery()
+        )
+        live_unbound_host_rows = self._registry.get_adapter("unbound", "host_override").search(
+            self._api,
+            SearchQuery(),
+        )
+        snapshot_unbound_host_rows = list(snapshot_state.unbound_host_overrides)
+        unbound_host_rows = self._merge_records(
+            live_unbound_host_rows,
+            snapshot_unbound_host_rows,
+            key_fields=("hostname", "domain", "server"),
+        )
+        return {
+            "snapshot_state": snapshot_state,
+            "dnsmasq_option_rows": dnsmasq_option_rows,
+            "unbound_host_rows": unbound_host_rows,
+            "service_statuses": self._service_statuses(),
+            "router_host": urlparse(self._config.base_url).hostname or "",
+        }
+
+    def _merge_records(
+        self,
+        primary: list[dict[str, str]],
+        secondary: list[dict[str, str]],
+        *,
+        key_fields: tuple[str, ...],
+    ) -> list[dict[str, str]]:
+        merged: list[dict[str, str]] = []
+        seen: set[tuple[str, ...]] = set()
+        for record in [*primary, *secondary]:
+            key = tuple(record.get(field, "") for field in key_fields)
+            if key in seen:
+                continue
+            seen.add(key)
+            merged.append(record)
+        return merged

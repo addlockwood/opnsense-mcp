@@ -61,8 +61,25 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+      - name: Prepare release bootstrap script
+        env:
+          RELEASE_IMAGE: ghcr.io/${{ github.repository }}:${{ steps.meta.outputs.version }}
+        run: |
+          mkdir -p dist
+          python - <<'PY'
+          import os
+          from pathlib import Path
+
+          source = Path("scripts/setup-local.sh").read_text(encoding="utf-8")
+          updated = source.replace(
+              'default_image="ghcr.io/addlockwood/opnsense-mcp:latest"',
+              f'default_image="{os.environ["RELEASE_IMAGE"]}"',
+              1,
+          )
+          Path("dist/setup-local.sh").write_text(updated, encoding="utf-8")
+          PY
       - name: Upload bootstrap script to GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          files: scripts/setup-local.sh
+          files: dist/setup-local.sh
           prerelease: ${{ contains(github.ref_name, '-') }}

@@ -7,7 +7,7 @@ default_image="ghcr.io/addlockwood/opnsense-mcp:latest"
 
 repo_path="${1:-}"
 server_name="${2:-}"
-image_name="${3:-$default_image}"
+image_name="${3:-}"
 
 prompt_with_default() {
   local prompt="$1"
@@ -35,12 +35,29 @@ yes_no_default() {
   [[ "${response}" == "y" || "${response}" == "yes" ]]
 }
 
+connection_mode() {
+  local response=""
+  printf "%s\n" "Router connection mode:" >&2
+  printf "%s\n" "  1. HTTPS (recommended)" >&2
+  printf "%s"   "  2. HTTP local lab [1]: " >&2
+  read -r response
+  if [[ "${response}" == "2" ]]; then
+    printf "http-local"
+  else
+    printf "https"
+  fi
+}
+
 if [[ -z "${repo_path}" ]]; then
   repo_path="$(prompt_with_default "Private router state repo path" "${default_repo_path}")"
 fi
 
 if [[ -z "${server_name}" ]]; then
   server_name="$(prompt_with_default "Codex MCP server name" "${default_server_name}")"
+fi
+
+if [[ -z "${image_name}" ]]; then
+  image_name="$(prompt_with_default "Container image ref" "${default_image}")"
 fi
 
 repo_path="${repo_path:A}"
@@ -68,14 +85,25 @@ Expected writable paths:
 This repo is mounted into the Dockerized MCP server at \`/workspace\`.
 EOF
 
+mode="$(connection_mode)"
+if [[ "${mode}" == "https" ]]; then
 cat > "${repo_path}/.env.local.example" <<'EOF'
-# For trusted local lab use only. Prefer https://... with OPNSENSE_VERIFY_TLS=true when available.
+# Recommended default. If your router uses an internal CA or self-signed cert, set OPNSENSE_VERIFY_TLS=false.
+OPNSENSE_BASE_URL=https://opnsense.internal
+OPNSENSE_API_KEY=replace-me
+OPNSENSE_API_SECRET=replace-me
+OPNSENSE_VERIFY_TLS=true
+EOF
+else
+cat > "${repo_path}/.env.local.example" <<'EOF'
+# Trusted local lab-only example. Prefer https://... with OPNSENSE_VERIFY_TLS=true when available.
 OPNSENSE_BASE_URL=http://opnsense.internal
 OPNSENSE_ALLOW_INSECURE_HTTP=true
 OPNSENSE_API_KEY=replace-me
 OPNSENSE_API_SECRET=replace-me
 OPNSENSE_VERIFY_TLS=false
 EOF
+fi
 
 if [[ ! -f "${repo_path}/.env.local" ]]; then
   cp "${repo_path}/.env.local.example" "${repo_path}/.env.local"
@@ -104,6 +132,7 @@ exec docker run --rm -i \\
   -e OPNSENSE_API_KEY \\
   -e OPNSENSE_API_SECRET \\
   -e OPNSENSE_VERIFY_TLS \\
+  -e OPNSENSE_MCP_IMAGE_REF="${image_name}" \\
   -e HOME=/tmp \\
   -e OPNSENSE_WORKSPACE_PATH=/workspace \\
   -v "\${SCRIPT_DIR}:/workspace" \\
@@ -132,5 +161,5 @@ Next steps:
   2. Build the image if needed:
        docker build --target runtime -t ${image_name} /Users/addom/dev/opnsense-mcp
   3. In Codex, start with:
-       Use only the ${server_name} MCP server. First run inspect_runtime.
+       Use only the ${server_name} MCP server. First run connectivity_preflight, then inspect_runtime.
 EOF

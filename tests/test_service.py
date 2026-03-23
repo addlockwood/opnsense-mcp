@@ -20,6 +20,48 @@ def test_plan_change_builds_upsert_plan(service) -> None:
     assert plan.services[0].module == "unbound"
 
 
+def test_connectivity_preflight_reports_ready(service) -> None:
+    payload = service.connectivity_preflight()
+    assert payload["ok"] is True
+    names = [check["name"] for check in payload["checks"]]
+    assert names == [
+        "workspace_writable",
+        "router_reachable",
+        "auth_valid",
+        "snapshot_endpoint",
+    ]
+
+
+def test_inspect_dhcp_reports_option_6_and_warning(service) -> None:
+    payload = service.inspect_dhcp()
+    assert payload["advertised_dns_servers"] == ["172.19.10.241"]
+    assert payload["dhcp_option_6_records"][0]["option"] == "6"
+    assert payload["warnings"]
+
+
+def test_inspect_dns_topology_reports_split_horizon_warning(service) -> None:
+    payload = service.inspect_dns_topology()
+    assert payload["unbound"]["host_overrides"]
+    assert payload["dnsmasq"]["dhcp"]["advertised_dns_servers"] == ["172.19.10.241"]
+    assert any("local host overrides" in warning for warning in payload["warnings"])
+
+
+def test_explain_resolution_path_reports_local_override(service) -> None:
+    payload = service.explain_resolution_path("vault.lab.lockwd.io")
+    assert payload["local_matches"][0]["hostname"] == "vault"
+    assert "local host override" in payload["summary"]
+
+
+def test_capture_dns_diagnosis_writes_snapshot_and_returns_summary(
+    service, temp_workspace: Path
+) -> None:
+    payload = service.capture_dns_diagnosis()
+    snapshot_path = Path(payload["snapshot"]["path"])
+    assert snapshot_path.exists()
+    assert payload["topology"]["summary"]
+    assert payload["warnings"]
+
+
 def test_apply_reconfigure_validate_finalize_writes_history_and_snapshot(
     service, temp_workspace: Path
 ) -> None:

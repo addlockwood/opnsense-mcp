@@ -23,6 +23,11 @@ class AppConfig:
     snapshot_host: str
     git_author_name: str
     git_author_email: str
+    transport: str = "stdio"
+    http_host: str = "127.0.0.1"
+    http_port: int = 8000
+    http_path: str = "/mcp"
+    image_ref: str = ""
     request_timeout_seconds: float = 30.0
 
     @classmethod
@@ -42,6 +47,11 @@ class AppConfig:
             os.environ.get("OPNSENSE_ALLOW_INSECURE_HTTP"),
             default=False,
         )
+        transport = os.environ.get("OPNSENSE_MCP_TRANSPORT", "stdio").strip().lower() or "stdio"
+        http_host = os.environ.get("OPNSENSE_MCP_HTTP_HOST", "127.0.0.1").strip() or "127.0.0.1"
+        http_port = int(os.environ.get("OPNSENSE_MCP_HTTP_PORT", "8000"))
+        http_path = os.environ.get("OPNSENSE_MCP_HTTP_PATH", "/mcp").strip() or "/mcp"
+        image_ref = os.environ.get("OPNSENSE_MCP_IMAGE_REF", "").strip()
 
         return cls(
             base_url=base_url,
@@ -53,6 +63,11 @@ class AppConfig:
             snapshot_host=snapshot_host,
             git_author_name=git_author_name,
             git_author_email=git_author_email,
+            transport=transport,
+            http_host=http_host,
+            http_port=http_port,
+            http_path=http_path,
+            image_ref=image_ref,
         )
 
     def validate_runtime(self) -> None:
@@ -75,3 +90,7 @@ class AppConfig:
                 "Refusing insecure HTTP OPNsense connection. "
                 "Set OPNSENSE_ALLOW_INSECURE_HTTP=true only for trusted local lab use."
             )
+        if self.transport not in {"stdio", "streamable-http"}:
+            raise ValueError("OPNSENSE_MCP_TRANSPORT must be stdio or streamable-http")
+        if not self.http_path.startswith("/"):
+            raise ValueError("OPNSENSE_MCP_HTTP_PATH must start with /")

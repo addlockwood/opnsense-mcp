@@ -99,7 +99,69 @@ class FakeAPIClient:
         return {"status": self.services[module]}
 
     def fetch_snapshot_xml(self, host: str) -> str:
-        return f"<?xml version='1.0'?><opnsense><host>{host}</host></opnsense>"
+        del host
+        return """<?xml version='1.0'?>
+<opnsense>
+  <system>
+    <hostname>opnsense</hostname>
+    <domain>lab.lockwd.io</domain>
+    <dnsallowoverride>0</dnsallowoverride>
+    <dnsserver>1.1.1.1</dnsserver>
+    <dnsserver>1.0.0.1</dnsserver>
+  </system>
+  <dnsmasq>
+    <enable>1</enable>
+    <interface>lan</interface>
+    <port>53053</port>
+    <dhcp>1</dhcp>
+    <dhcp_ranges>
+      <range>
+        <interface>lan</interface>
+        <from>172.19.10.100</from>
+        <to>172.19.10.199</to>
+      </range>
+    </dhcp_ranges>
+    <dhcp_options />
+  </dnsmasq>
+  <OPNsense>
+    <unboundplus>
+      <general>
+        <enabled>1</enabled>
+        <local_zone_type>transparent</local_zone_type>
+      </general>
+      <forwarding>
+        <enabled>0</enabled>
+      </forwarding>
+      <hosts>
+        <host>
+          <enabled>1</enabled>
+          <hostname>kube</hostname>
+          <domain>lab.lockwd.io</domain>
+          <rr>A</rr>
+          <mxprio>10</mxprio>
+          <mx></mx>
+          <server>172.19.10.54</server>
+          <txtdata></txtdata>
+          <description>Bootstrap k3s API DNS</description>
+          <aliases></aliases>
+        </host>
+        <host>
+          <enabled>1</enabled>
+          <hostname>vault</hostname>
+          <domain>lab.lockwd.io</domain>
+          <rr>A</rr>
+          <mxprio>10</mxprio>
+          <mx></mx>
+          <server>172.19.10.54</server>
+          <txtdata></txtdata>
+          <description>Bootstrap Vault host DNS</description>
+          <aliases></aliases>
+        </host>
+      </hosts>
+      <aliases />
+    </unboundplus>
+  </OPNsense>
+</opnsense>"""
 
     def _apply_mutation(
         self,
@@ -149,6 +211,11 @@ def config(temp_workspace: Path) -> AppConfig:
         snapshot_host="this",
         git_author_name="Test User",
         git_author_email="test@example.com",
+        transport="stdio",
+        http_host="127.0.0.1",
+        http_port=8000,
+        http_path="/mcp",
+        image_ref="ghcr.io/addlockwood/opnsense-mcp:test",
     )
 
 

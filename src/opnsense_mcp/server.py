@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import contextlib
+from collections.abc import AsyncIterator
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
@@ -14,7 +16,22 @@ def build_server(config: AppConfig | None = None) -> FastMCP:
     app_config.validate_runtime()
     service = OPNsenseMCPService(app_config)
 
-    mcp = FastMCP("OPNsense MCP", json_response=True)
+    @contextlib.asynccontextmanager
+    async def lifespan(_: FastMCP) -> AsyncIterator[None]:
+        try:
+            yield
+        finally:
+            service.close()
+
+    mcp = FastMCP(
+        "OPNsense MCP",
+        json_response=True,
+        stateless_http=app_config.transport == "streamable-http",
+        host=app_config.http_host,
+        port=app_config.http_port,
+        streamable_http_path=app_config.http_path,
+        lifespan=lifespan,
+    )
 
     @mcp.tool()
     def list_core_modules() -> list[dict[str, Any]]:
@@ -30,6 +47,31 @@ def build_server(config: AppConfig | None = None) -> FastMCP:
     def inspect_state(module: str) -> dict[str, Any]:
         """Inspect live state for a supported module."""
         return service.inspect_state(module)
+
+    @mcp.tool()
+    def connectivity_preflight() -> dict[str, Any]:
+        """Check router reachability, auth, workspace writability, and snapshot access."""
+        return service.connectivity_preflight()
+
+    @mcp.tool()
+    def inspect_dhcp() -> dict[str, Any]:
+        """Inspect DHCP state, option 6, and the DNS resolvers clients are being told to use."""
+        return service.inspect_dhcp()
+
+    @mcp.tool()
+    def inspect_dns_topology() -> dict[str, Any]:
+        """Inspect DNS ownership, forwarding, DHCP-advertised resolvers, and topology risks."""
+        return service.inspect_dns_topology()
+
+    @mcp.tool()
+    def explain_resolution_path(hostname: str) -> dict[str, Any]:
+        """Explain how a specific hostname is expected to resolve for clients and the firewall."""
+        return service.explain_resolution_path(hostname)
+
+    @mcp.tool()
+    def capture_dns_diagnosis() -> dict[str, Any]:
+        """Capture a live snapshot and return a normalized DNS/DHCP diagnosis bundle."""
+        return service.capture_dns_diagnosis()
 
     @mcp.tool()
     def search_records(module: str, record_type: str, phrase: str = "") -> dict[str, Any]:

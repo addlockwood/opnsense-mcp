@@ -31,6 +31,7 @@ chmod +x setup-local.sh
 ```
 
 The script only prepares your private router-state repo and local launcher; it does not build the image.
+If the script came from a tagged release, the generated launcher is pinned to that same image tag by default.
 
 Recommended normal defaults:
 
@@ -51,6 +52,7 @@ The script will create:
 - `run-opnsense-mcp.sh`
 
 It can also register the MCP server in Codex for you.
+It will also ask whether you want an HTTPS-first router config or a trusted-local HTTP lab config.
 
 ## 3. Fill In OPNsense Credentials
 
@@ -61,10 +63,18 @@ Edit the generated `.env.local` and set:
 - `OPNSENSE_API_KEY`
 - `OPNSENSE_API_SECRET`
 
-Default example:
+HTTPS-first example:
 
 ```env
-# Local lab-only example. Prefer https://... with OPNSENSE_VERIFY_TLS=true when available.
+OPNSENSE_BASE_URL=https://opnsense.internal
+OPNSENSE_API_KEY=replace-me
+OPNSENSE_API_SECRET=replace-me
+OPNSENSE_VERIFY_TLS=true
+```
+
+Trusted local lab HTTP example:
+
+```env
 OPNSENSE_BASE_URL=http://opnsense.internal
 OPNSENSE_ALLOW_INSECURE_HTTP=true
 OPNSENSE_API_KEY=replace-me
@@ -76,13 +86,8 @@ If your router has HTTPS available with a trusted certificate, use that instead 
 
 ## 4. Confirm The Launcher Image
 
-The generated launcher defaults to:
-
-```bash
-ghcr.io/addlockwood/opnsense-mcp:latest
-```
-
-If you want to pin a specific release, edit `run-opnsense-mcp.sh` and replace `latest` with a version tag.
+The generated launcher defaults to the image tag bundled with the downloaded release script. For stable releases fetched through `releases/latest`, that will usually be the current stable image.
+If you want to override it, edit `run-opnsense-mcp.sh` and replace the image ref with another tag.
 The generated launcher also runs the container as your local user so the mounted private repo stays writable without granting the container root access.
 
 ## 5. Verify Codex MCP Registration
@@ -98,7 +103,7 @@ You should see the configured server name, such as `opnsense`.
 In a fresh Codex session, begin with:
 
 ```text
-Use only the opnsense MCP server. First run inspect_runtime, then inspect_state for unbound and dnsmasq. Do not inspect local repos or files outside the MCP workspace.
+Use only the opnsense MCP server. First run connectivity_preflight, then inspect_runtime, inspect_dns_topology, and inspect_dhcp. Do not inspect local repos or files outside the MCP workspace.
 ```
 
 If you used a custom server name like `opnsense-uat`, replace the server name in that prompt.
@@ -106,7 +111,8 @@ If you used a custom server name like `opnsense-uat`, replace the server name in
 ## 7. What Good UAT Looks Like
 
 - `inspect_runtime` reports `/workspace`
-- `inspect_state` returns live OPNsense data
+- `connectivity_preflight` reports router access, auth, workspace writability, and snapshot access
+- `inspect_dns_topology` and `inspect_dhcp` return live OPNsense topology data
 - `snapshots/current-config.xml` appears in your private repo
 - `history/` stays empty until you actually finalize a validated change
 

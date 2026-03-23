@@ -13,7 +13,7 @@ Stage 1 is the default path for most users:
 - connect from Codex or Cursor on the same machine
 - validate the OPNsense workflow locally before considering any remote deployment
 
-Advanced private remote hosting is intentionally deferred to stage 2.
+Stage 2 adds private HTTPS remote hosting for homelab or cluster use.
 
 For most users, start with the end-user quick start:
 
@@ -49,7 +49,7 @@ The published server image stays generic. Router-specific state lives in a separ
 
 Stage 2 is an advanced deployment for private remote hosting in a homelab or similar always-on environment.
 
-- add remote MCP HTTP transport later
+- run the same MCP server over Streamable HTTP
 - host it privately behind HTTPS
 - keep the same mounted workspace and history/snapshot contract
 - do not treat this as the default onboarding path
@@ -70,6 +70,11 @@ Optional environment variables:
 - `OPNSENSE_SNAPSHOT_HOST` default `this`
 - `OPNSENSE_GIT_AUTHOR_NAME`
 - `OPNSENSE_GIT_AUTHOR_EMAIL`
+- `OPNSENSE_MCP_TRANSPORT` default `stdio`
+- `OPNSENSE_MCP_HTTP_HOST` default `127.0.0.1`
+- `OPNSENSE_MCP_HTTP_PORT` default `8000`
+- `OPNSENSE_MCP_HTTP_PATH` default `/mcp`
+- `OPNSENSE_MCP_IMAGE_REF`
 
 Security defaults:
 
@@ -129,13 +134,14 @@ The bootstrap script will:
 
 - ask where to create the private repo
 - ask what Codex MCP server name to use
+- ask whether the router connection should default to HTTPS or trusted-local HTTP
+- ask which image ref to pin in the generated launcher
 - scaffold the writable repo layout
 - create the local launcher script
 - optionally register the stdio MCP server in Codex
 
-By default, the generated launcher points at `ghcr.io/addlockwood/opnsense-mcp:latest`.
+If the script was downloaded from a tagged GitHub release, the generated launcher defaults to that exact image tag.
 After that, edit the generated `.env.local` in your private repo and fill in your OPNsense API values.
-The generated file uses `http://opnsense.internal` only as an explicit local-lab opt-in and sets `OPNSENSE_ALLOW_INSECURE_HTTP=true` to make that choice obvious.
 
 ## Build From Source
 
@@ -158,6 +164,7 @@ docker run --rm -i \
   -e OPNSENSE_API_KEY=... \
   -e OPNSENSE_API_SECRET=... \
   -e OPNSENSE_VERIFY_TLS=true \
+  -e OPNSENSE_MCP_IMAGE_REF=ghcr.io/addlockwood/opnsense-mcp:latest \
   -e HOME=/tmp \
   -v /path/to/private-router-repo:/workspace \
   ghcr.io/addlockwood/opnsense-mcp:latest
@@ -194,21 +201,27 @@ For most users, the bootstrap script plus the published GHCR image is the easier
 Use this checklist for stage-1 acceptance:
 
 1. Connect from Codex or Cursor to the local Docker stdio server.
-2. Run `inspect_runtime` first and confirm the workspace path is `/workspace` and maps to your private mounted UAT repo, not your source repo.
-3. Run `list_core_modules` and `inspect_state` against the live router.
-4. Generate a plan for one supported change without applying it yet.
-5. Confirm and apply one supported mutation.
-6. Reconfigure only the affected OPNsense service.
-7. Validate the changed state through API readback.
-8. Confirm `snapshots/current-config.xml` is written to the mounted private repo.
-9. Confirm a new history entry is written to `history/`.
-10. Confirm the mounted private repo receives a known-good git commit.
-11. Roll back to the previous commit and validate the restored state.
+2. Run `connectivity_preflight` and confirm router reachability, auth, workspace writability, and snapshot access are all healthy.
+3. Run `inspect_runtime` and confirm the workspace path is `/workspace` and maps to your private mounted repo, not your source repo.
+4. Run `inspect_dns_topology`, `inspect_dhcp`, and `explain_resolution_path` for at least one known internal hostname.
+5. Confirm `capture_dns_diagnosis` writes `snapshots/current-config.xml` and returns a diagnosis bundle with warnings when topology is inconsistent.
+6. Generate a plan for one supported change without applying it yet.
+7. Confirm and apply one supported mutation.
+8. Reconfigure only the affected OPNsense service.
+9. Validate the changed state through API readback.
+10. Confirm a new history entry is written to `history/`.
+11. Confirm the mounted private repo receives a known-good git commit.
+12. Roll back to the previous commit and validate the restored state.
 
 ## Tooling overview
 
 - `list_core_modules`
+- `connectivity_preflight`
 - `inspect_runtime`
+- `inspect_dhcp`
+- `inspect_dns_topology`
+- `explain_resolution_path`
+- `capture_dns_diagnosis`
 - `inspect_state`
 - `search_records`
 - `plan_change`
@@ -237,4 +250,4 @@ That path is for:
 - homelab or cluster deployment
 - HTTPS ingress and deployment-specific networking
 
-It is intentionally not required for local UAT.
+It is intentionally optional for local quick start, but supported for private HTTPS deployment.
