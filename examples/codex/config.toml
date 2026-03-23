@@ -1,0 +1,20 @@
+# Example Codex MCP configuration for local Docker UAT.
+#
+# Copy the server block into ~/.codex/config.toml and adjust the host path.
+# This uses a local Dockerized stdio MCP server, which is the recommended
+# stage-1 path for opnsense-mcp.
+
+[mcp_servers.opnsense]
+command = "docker"
+args = [
+  "run",
+  "--rm",
+  "-i",
+  "-e", "OPNSENSE_BASE_URL",
+  "-e", "OPNSENSE_API_KEY",
+  "-e", "OPNSENSE_API_SECRET",
+  "-e", "OPNSENSE_VERIFY_TLS=false",
+  "-v", "/ABSOLUTE/PATH/TO/private-router-state:/workspace",
+  "opnsense-mcp:local",
+]
+

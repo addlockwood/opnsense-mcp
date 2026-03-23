@@ -1,0 +1,50 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "opnsense-mcp"
+version = "0.1.0"
+description = "Standalone MCP server for OPNsense Core API workflows"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.12"
+authors = [
+  { name = "Addom Lockwood" }
+]
+dependencies = [
+  "httpx>=0.28.1,<0.29",
+  "mcp[cli]>=1.26.0,<2",
+  "pydantic>=2.11.0,<3",
+]
+
+[project.optional-dependencies]
+dev = [
+  "mypy>=1.15.0,<2",
+  "pytest>=8.3.0,<9",
+  "pytest-cov>=6.0.0,<7",
+  "ruff>=0.11.0,<0.12",
+]
+
+[project.scripts]
+opnsense-mcp = "opnsense_mcp.__main__:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/opnsense_mcp"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+packages = ["opnsense_mcp"]
+
