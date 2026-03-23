@@ -38,9 +38,11 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ghcr.io/${{ github.repository }}
+          flavor: |
+            latest=false
           tags: |
             type=semver,pattern={{version}}
-            type=raw,value=latest
+            type=raw,value=latest,enable=${{ !contains(github.ref_name, '-') }}
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
       - name: Set up Docker Buildx
@@ -62,3 +64,4 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: scripts/setup-local.sh
+          prerelease: ${{ contains(github.ref_name, '-') }}
