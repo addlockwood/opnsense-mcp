@@ -18,6 +18,7 @@ def test_build_server_uses_http_runtime_settings(config) -> None:
     assert server.settings.port == 8080
     assert server.settings.streamable_http_path == "/mcp"
     assert server.settings.stateless_http is False
+    assert server.settings.lifespan is None
 
 
 def test_build_server_can_enable_stateless_http(config) -> None:

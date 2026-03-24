@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import contextlib
-from collections.abc import AsyncIterator
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
@@ -16,13 +14,6 @@ def build_server(config: AppConfig | None = None) -> FastMCP:
     app_config.validate_runtime()
     service = OPNsenseMCPService(app_config)
 
-    @contextlib.asynccontextmanager
-    async def lifespan(_: FastMCP) -> AsyncIterator[None]:
-        try:
-            yield
-        finally:
-            service.close()
-
     mcp = FastMCP(
         "OPNsense MCP",
         json_response=True,
@@ -30,7 +21,6 @@ def build_server(config: AppConfig | None = None) -> FastMCP:
         host=app_config.http_host,
         port=app_config.http_port,
         streamable_http_path=app_config.http_path,
-        lifespan=lifespan,
     )
 
     @mcp.tool()
