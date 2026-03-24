@@ -26,7 +26,7 @@ def build_server(config: AppConfig | None = None) -> FastMCP:
     mcp = FastMCP(
         "OPNsense MCP",
         json_response=True,
-        stateless_http=app_config.transport == "streamable-http",
+        stateless_http=app_config.stateless_http,
         host=app_config.http_host,
         port=app_config.http_port,
         streamable_http_path=app_config.http_path,

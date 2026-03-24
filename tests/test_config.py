@@ -22,6 +22,7 @@ def test_validate_runtime_allows_https_by_default(tmp_path: Path) -> None:
         http_host="127.0.0.1",
         http_port=8000,
         http_path="/mcp",
+        stateless_http=False,
         image_ref="",
     )
 
@@ -43,6 +44,7 @@ def test_validate_runtime_rejects_plain_http_without_opt_in(tmp_path: Path) -> N
         http_host="127.0.0.1",
         http_port=8000,
         http_path="/mcp",
+        stateless_http=False,
         image_ref="",
     )
 
@@ -65,6 +67,7 @@ def test_validate_runtime_allows_plain_http_with_explicit_opt_in(tmp_path: Path)
         http_host="127.0.0.1",
         http_port=8000,
         http_path="/mcp",
+        stateless_http=False,
         image_ref="",
     )
 
@@ -86,6 +89,7 @@ def test_validate_runtime_rejects_invalid_transport(tmp_path: Path) -> None:
         http_host="127.0.0.1",
         http_port=8000,
         http_path="/mcp",
+        stateless_http=False,
         image_ref="",
     )
 

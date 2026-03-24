@@ -27,6 +27,7 @@ class AppConfig:
     http_host: str = "127.0.0.1"
     http_port: int = 8000
     http_path: str = "/mcp"
+    stateless_http: bool = False
     image_ref: str = ""
     request_timeout_seconds: float = 30.0
 
@@ -51,6 +52,10 @@ class AppConfig:
         http_host = os.environ.get("OPNSENSE_MCP_HTTP_HOST", "127.0.0.1").strip() or "127.0.0.1"
         http_port = int(os.environ.get("OPNSENSE_MCP_HTTP_PORT", "8000"))
         http_path = os.environ.get("OPNSENSE_MCP_HTTP_PATH", "/mcp").strip() or "/mcp"
+        stateless_http = _bool_from_env(
+            os.environ.get("OPNSENSE_MCP_STATELESS_HTTP"),
+            default=False,
+        )
         image_ref = os.environ.get("OPNSENSE_MCP_IMAGE_REF", "").strip()
 
         return cls(
@@ -67,6 +72,7 @@ class AppConfig:
             http_host=http_host,
             http_port=http_port,
             http_path=http_path,
+            stateless_http=stateless_http,
             image_ref=image_ref,
         )
 
