@@ -75,8 +75,8 @@ def build_server(config: AppConfig | None = None) -> FastMCP:
         module: str,
         record_type: str,
         intent: str,
-        match_fields: dict[str, str],
-        values: dict[str, str] | None = None,
+        match_fields: dict[str, str] | str,
+        values: dict[str, str] | str | None = None,
     ) -> dict[str, Any]:
         """Create a structured change plan for a supported record type."""
         return service.plan_change(

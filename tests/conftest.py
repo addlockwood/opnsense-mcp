@@ -30,6 +30,7 @@ class FakeAPIClient:
                 ]
             },
             "dnsmasq": {
+                "host": [],
                 "option": [
                     {
                         "uuid": "uuid-option-6",
@@ -63,6 +64,8 @@ class FakeAPIClient:
             return {"rows": deepcopy(self.state["unbound"]["host_override"])}
         if command == "search_option":
             return {"rows": deepcopy(self.state["dnsmasq"]["option"])}
+        if command == "search_host":
+            return {"rows": deepcopy(self.state["dnsmasq"]["host"])}
         raise AssertionError(f"unexpected search command: {command}")
 
     def execute(
@@ -86,10 +89,12 @@ class FakeAPIClient:
                 payload=payload,
             )
         if module == "dnsmasq":
+            payload_root = "host" if command.endswith("_host") else "option"
+            record_type = "host" if command.endswith("_host") else "option"
             return self._apply_mutation(
-                records=self.state["dnsmasq"]["option"],
+                records=self.state["dnsmasq"][record_type],
                 command=command,
-                payload_root="option",
+                payload_root=payload_root,
                 path_params=path_params,
                 payload=payload,
             )
@@ -216,6 +221,7 @@ def config(temp_workspace: Path) -> AppConfig:
         http_port=8000,
         http_path="/mcp",
         image_ref="ghcr.io/addlockwood/opnsense-mcp:test",
+        stateless_http=False,
     )
 
 

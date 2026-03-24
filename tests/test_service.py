@@ -22,6 +22,41 @@ def test_plan_change_builds_upsert_plan(service) -> None:
     assert plan.services[0].module == "unbound"
 
 
+def test_plan_change_accepts_create_alias_and_string_values(service) -> None:
+    payload = service.plan_change(
+        summary="add eap720 override",
+        requested_change="Create eap720.core.lockwd.io",
+        module="unbound",
+        record_type="host_override",
+        intent="create",
+        match_fields={"hostname": "eap720", "domain": "core.lockwd.io"},
+        values='server=172.19.10.120 description="EAP720 AP management DNS"',
+    )
+    plan = ChangePlan.model_validate(payload)
+    assert plan.intent == "upsert"
+    assert plan.values["server"] == "172.19.10.120"
+    assert plan.values["description"] == "EAP720 AP management DNS"
+    assert plan.operations[0].command == "add_host_override"
+
+
+def test_plan_change_builds_dnsmasq_host_plan(service) -> None:
+    payload = service.plan_change(
+        summary="reserve ap ip",
+        requested_change="Create static reservation for EAP720",
+        module="dnsmasq",
+        record_type="host",
+        intent="add",
+        match_fields={"host": "eap720", "domain": "core.lockwd.io"},
+        values='ip=172.19.10.120 hwaddr=AA:BB:CC:DD:EE:FF descr="EAP720 static reservation"',
+    )
+    plan = ChangePlan.model_validate(payload)
+    assert plan.module == "dnsmasq"
+    assert plan.record_type == "host"
+    assert plan.operations[0].command == "add_host"
+    assert plan.values["ip"] == "172.19.10.120"
+    assert plan.values["hwaddr"] == "AA:BB:CC:DD:EE:FF"
+
+
 def test_connectivity_preflight_reports_ready(service) -> None:
     payload = service.connectivity_preflight()
     assert payload["ok"] is True

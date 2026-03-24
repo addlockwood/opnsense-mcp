@@ -13,5 +13,8 @@ def test_registry_lists_core_modules() -> None:
 def test_registry_marks_mutable_modules_with_supported_record_types() -> None:
     registry = CoreModuleRegistry()
     unbound = registry.get_module("unbound").metadata
+    dnsmasq = registry.get_module("dnsmasq").metadata
     assert unbound.mutable is True
     assert unbound.supported_record_types == ["host_override"]
+    assert dnsmasq.mutable is True
+    assert dnsmasq.supported_record_types == ["host", "option"]

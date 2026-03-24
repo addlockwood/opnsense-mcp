@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import shlex
 from datetime import UTC, datetime
 from importlib.metadata import PackageNotFoundError, version
-from typing import Any, cast
+from typing import Any, Literal, cast
 from urllib.parse import urlparse
 
 import httpx
@@ -35,6 +36,19 @@ from opnsense_mcp.models import (
 )
 from opnsense_mcp.registry import CoreModuleRegistry
 from opnsense_mcp.workspace import WorkspaceManager
+
+UPSERT_INTENTS = {
+    "upsert",
+    "add",
+    "apply",
+    "create",
+    "ensure",
+    "insert",
+    "present",
+    "set",
+    "update",
+}
+DELETE_INTENTS = {"absent", "del", "delete", "remove"}
 
 
 class OPNsenseMCPService:
@@ -208,15 +222,19 @@ class OPNsenseMCPService:
         module: str,
         record_type: str,
         intent: str,
-        match_fields: dict[str, str],
-        values: dict[str, str] | None = None,
+        match_fields: dict[str, str] | str,
+        values: dict[str, str] | str | None = None,
     ) -> dict[str, Any]:
         adapter = self._registry.get_adapter(module, record_type)
-        values = values or {}
-        match = adapter.find_match(self._api, match_fields)
-        if intent == "upsert":
-            operations = adapter.build_upsert_operations(match.existing, {**match_fields, **values})
-        elif intent == "delete":
+        normalized_intent = self._normalize_intent(intent)
+        normalized_match_fields = self._coerce_field_map(match_fields, field_name="match_fields")
+        normalized_values = self._coerce_field_map(values, field_name="values")
+        match = adapter.find_match(self._api, normalized_match_fields)
+        if normalized_intent == "upsert":
+            operations = adapter.build_upsert_operations(
+                match.existing, {**normalized_match_fields, **normalized_values}
+            )
+        elif normalized_intent == "delete":
             operations = adapter.build_delete_operations(match.existing)
         else:
             raise UnsupportedModuleError(f"Unsupported intent '{intent}'")
@@ -226,14 +244,16 @@ class OPNsenseMCPService:
             requested_change=requested_change,
             module=module,
             record_type=record_type,
-            intent="upsert" if intent == "upsert" else "delete",
-            match_fields=match_fields,
-            values=values,
+            intent=normalized_intent,
+            match_fields=normalized_match_fields,
+            values=normalized_values,
             affected_modules=[module],
             operations=operations,
             services=[ServiceAction(module=module, description=f"Reconfigure {module}")],
             validation_checks=adapter.build_validation_checks(
-                intent, match_fields, {**match_fields, **values}
+                normalized_intent,
+                normalized_match_fields,
+                {**normalized_match_fields, **normalized_values},
             ),
             rollback=RollbackBasis(workspace_head=self._workspace.current_head()),
         )
@@ -476,12 +496,54 @@ class OPNsenseMCPService:
     def _default_match_fields(self, row: dict[str, str]) -> dict[str, str]:
         for candidate_keys in (
             ("hostname", "domain"),
+            ("host", "domain"),
             ("option", "interface", "tag"),
+            ("hwaddr",),
+            ("client_id",),
+            ("ip",),
         ):
             match_fields = {key: row[key] for key in candidate_keys if key in row and row[key]}
             if match_fields:
                 return match_fields
         return {key: value for key, value in row.items() if key != "uuid" and value}
+
+    def _normalize_intent(self, intent: str) -> Literal["upsert", "delete"]:
+        normalized = intent.strip().lower()
+        if normalized in UPSERT_INTENTS:
+            return "upsert"
+        if normalized in DELETE_INTENTS:
+            return "delete"
+        raise UnsupportedModuleError(
+            f"Unsupported intent '{intent}'. Use upsert/create/add/update or delete/remove."
+        )
+
+    def _coerce_field_map(
+        self,
+        value: dict[str, str] | str | None,
+        *,
+        field_name: str,
+    ) -> dict[str, str]:
+        if value is None:
+            return {}
+        if isinstance(value, dict):
+            return {str(key): str(item) for key, item in value.items()}
+        if not isinstance(value, str):
+            raise TypeError(f"{field_name} must be a dictionary or key=value string")
+
+        result: dict[str, str] = {}
+        normalized = value.replace(",", " ").replace(";", " ")
+        for token in shlex.split(normalized):
+            if "=" not in token:
+                raise ValueError(
+                    f"{field_name} string entries must use key=value syntax; got '{token}'"
+                )
+            key, raw_item = token.split("=", 1)
+            key = key.strip()
+            item = raw_item.strip()
+            if not key:
+                raise ValueError(f"{field_name} contains an empty key in '{token}'")
+            result[key] = item
+        return result
 
     def _app_version(self) -> str:
         try:

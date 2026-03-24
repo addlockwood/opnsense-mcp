@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 from opnsense_mcp.adapters.base import RecordAdapter
 from opnsense_mcp.adapters.dnsmasq import DnsmasqOptionAdapter
+from opnsense_mcp.adapters.dnsmasq_host import DnsmasqHostAdapter
 from opnsense_mcp.adapters.unbound import UnboundHostOverrideAdapter
 from opnsense_mcp.errors import UnsupportedModuleError
 from opnsense_mcp.models import ModuleMetadata
@@ -61,6 +62,7 @@ class CoreModuleRegistry:
 
         self._descriptors = descriptors
         self._register_adapter(UnboundHostOverrideAdapter())
+        self._register_adapter(DnsmasqHostAdapter())
         self._register_adapter(DnsmasqOptionAdapter())
 
     def _register_adapter(self, adapter: RecordAdapter) -> None:
