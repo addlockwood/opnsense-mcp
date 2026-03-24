@@ -44,7 +44,7 @@ class FakeAPIClient:
                         "force": "0",
                         "description": "Advertise Pi-hole as LAN DNS",
                     }
-                ]
+                ],
             },
         }
         self.services = {"unbound": "running", "dnsmasq": "running"}
